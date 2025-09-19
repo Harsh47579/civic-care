@@ -252,3 +252,4 @@ console.log('Has user location:', hasUserLocation);
 2. **Use fallback location** to avoid repeated requests
 3. **Disable toasts** in production for better UX
 4. **Lazy load** map components when needed
+
