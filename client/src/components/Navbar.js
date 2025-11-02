@@ -6,7 +6,6 @@ import {
   Map, 
   Camera, 
   BarChart3, 
-  Bell, 
   User, 
   Menu, 
   X,
@@ -14,6 +13,8 @@ import {
   Moon,
   Trophy
 } from 'lucide-react';
+import NivaranIcon from './NivaranIcon';
+import NotificationDropdown from './NotificationDropdown';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -55,12 +56,10 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">JH</span>
-            </div>
+            <NivaranIcon size="xxl" className="flex-shrink-0" />
             <div>
-              <h1 className="text-white font-bold text-lg">Jharkhand Civic Issues</h1>
-              <p className="text-dark-400 text-xs">Government of Jharkhand</p>
+              <h1 className="text-white font-bold text-lg">Nivaran</h1>
+              <p className="text-dark-400 text-xs">Issue Resolution Platform</p>
             </div>
           </Link>
 
@@ -88,14 +87,7 @@ const Navbar = () => {
           {/* Right side actions */}
           <div className="flex items-center space-x-4">
             {/* Notifications */}
-            {isAuthenticated && (
-              <button className="relative p-2 text-dark-300 hover:text-white transition-colors">
-                <Bell size={20} />
-                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  3
-                </span>
-              </button>
-            )}
+            {isAuthenticated && <NotificationDropdown />}
 
             {/* Dark mode toggle */}
             <button
@@ -171,6 +163,14 @@ const Navbar = () => {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <div className="md:hidden border-t border-dark-700 py-4">
+            {/* Mobile Logo */}
+            <div className="flex items-center space-x-3 px-3 py-2 mb-4">
+              <NivaranIcon size="medium" className="flex-shrink-0" />
+              <div>
+                <h1 className="text-white font-bold text-lg">Nivaran</h1>
+                <p className="text-dark-400 text-xs">Issue Resolution Platform</p>
+              </div>
+            </div>
             <div className="space-y-2">
               {navItems.map((item) => {
                 const Icon = item.icon;

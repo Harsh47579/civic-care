@@ -4,8 +4,9 @@ import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import Navbar from './components/Navbar';
-import Chatbot from './components/Chatbot';
+import ModernChatbot from './components/ModernChatbot';
 import ChatTest from './components/ChatTest';
 import Home from './pages/Home';
 import IssuesMap from './pages/IssuesMap';
@@ -35,7 +36,8 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SocketProvider>
-          <Router>
+          <NotificationProvider>
+            <Router>
             <div className="min-h-screen bg-dark-900">
               <Navbar />
               <main className="min-h-screen">
@@ -84,7 +86,7 @@ function App() {
               </main>
               
               {/* Chatbot - Available on all pages */}
-              <Chatbot />
+              <ModernChatbot />
               
               {/* Debug Chat Test - Remove this after fixing */}
               <ChatTest />
@@ -114,6 +116,7 @@ function App() {
               />
             </div>
           </Router>
+          </NotificationProvider>
         </SocketProvider>
       </AuthProvider>
     </QueryClientProvider>

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, EyeOff, Mail, Lock, User, MapPin, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
+import NivaranIcon from '../components/NivaranIcon';
 import useGeolocation from '../hooks/useGeolocation';
 import { MAPS_CONFIG } from '../config/maps';
 
@@ -59,12 +60,12 @@ const Register = () => {
     <div className="min-h-screen bg-dark-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="w-16 h-16 bg-primary-600 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">JH</span>
+          <div className="flex items-center justify-center mb-4">
+            <NivaranIcon size="xl" />
           </div>
-          <h2 className="text-3xl font-bold text-white">Create Account</h2>
+          <h2 className="text-2xl font-semibold text-white mb-2">Create Account</h2>
           <p className="mt-2 text-dark-300">
-            Join the community and help make Jharkhand better
+            Join the community and help make your area better
           </p>
         </div>
 

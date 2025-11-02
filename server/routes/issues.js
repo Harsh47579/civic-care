@@ -10,6 +10,7 @@ const FundingCampaign = require('../models/FundingCampaign');
 const routingEngine = require('../services/routingEngine');
 const RewardsService = require('../services/rewardsService');
 const AIService = require('../services/AIService');
+const NotificationService = require('../services/notificationService');
 const { auth, departmentAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -18,7 +19,7 @@ const router = express.Router();
 const createMockAdmin = () => ({
   _id: 'admin-bypass-id',
   name: 'Admin User',
-  email: 'admin@jharkhand.gov.in',
+  email: 'admin@nivaran.com',
   role: 'admin',
   isActive: true,
   permissions: ['*']
@@ -328,6 +329,9 @@ router.post('/', auth, (req, res, next) => {
 
     await issue.save();
 
+    // Send notification for issue reported
+    await NotificationService.notifyIssueReported(issue);
+
     // Auto-route issue to appropriate department
     try {
       const assignment = await routingEngine.autoAssignIssue(issue._id);
@@ -360,7 +364,13 @@ router.post('/', auth, (req, res, next) => {
     // Update user stats
     await req.user.updateOne({ $inc: { 'stats.reportsSubmitted': 1 } });
 
-    // Emit real-time update
+    // Emit real-time update for AI predictions and admin dashboard
+    const emitNewIssue = req.app.get('emitNewIssue');
+    if (emitNewIssue) {
+      emitNewIssue(issue);
+    }
+
+    // Also emit general new issue event for other clients
     const io = req.app.get('io');
     io.emit('new-issue', {
       id: issue._id,
@@ -527,7 +537,7 @@ router.get('/', [
 });
 
 // @route   GET /api/issues/predictive-analytics
-// @desc    Get predictive analytics for admin dashboard
+// @desc    Get predictive analytics for admin dashboard based on recent issues
 // @access  Private (Admin only)
 router.get('/predictive-analytics', auth, async (req, res) => {
   try {
@@ -559,32 +569,60 @@ router.get('/predictive-analytics', auth, async (req, res) => {
       });
     }
 
-    // Generate dummy prediction data immediately (simplified for now)
-    const prediction = {
-      issue: "Waterlogging",
-      riskScore: 0.82,
-      recommendedAction: "Pre-clean drains in low-lying areas before rainfall",
-      predictedDate: "2025-09-20",
-      hotspotAreas: ["Sector 5", "Sector 9", "Old Market Road"]
-    };
+    // Get recent issues for AI analysis (last 30 days)
+    console.log('📊 Fetching recent issues for AI analysis...');
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentIssues = await Issue.find({
+      createdAt: { $gte: thirtyDaysAgo }
+    })
+    .select('title description category priority status location createdAt')
+    .sort({ createdAt: -1 })
+    .lean();
 
-    // Get actual issue count from database for realistic data points
-    let dataPoints = 0;
-    try {
-      dataPoints = await Issue.countDocuments();
-    } catch (dbError) {
-      console.log('Could not get issue count, using default:', dbError.message);
-      dataPoints = 11; // Default based on user stats
+    console.log(`📈 Found ${recentIssues.length} recent issues for analysis`);
+
+    // Use AI Service to generate predictions based on recent issues
+    const aiAnalysis = await AIService.predictiveAnalytics(recentIssues);
+    
+    if (!aiAnalysis.success) {
+      console.error('❌ AI analysis failed:', aiAnalysis.error);
+      // Fallback to dummy data if AI fails
+      const fallbackPrediction = {
+        issue: "Waterlogging",
+        riskScore: 0.75,
+        recommendedAction: "Monitor recent issue patterns for proactive intervention",
+        predictedDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+        hotspotAreas: ["Recent Issue Areas"]
+      };
+
+      return res.json({
+        success: true,
+        prediction: fallbackPrediction,
+        dataPoints: recentIssues.length,
+        timestamp: new Date().toISOString(),
+        source: 'fallback-server',
+        aiModel: 'Fallback Engine'
+      });
     }
 
-    console.log('✅ Sending prediction response:', prediction, 'Data points:', dataPoints);
+    // Generate prediction based on AI analysis
+    const prediction = generatePredictionFromAIAnalysis(aiAnalysis.data, recentIssues);
+    
+    console.log('✅ AI analysis completed:', {
+      dataPoints: recentIssues.length,
+      riskScore: prediction.riskScore,
+      model: aiAnalysis.data.aiModel
+    });
 
     res.json({
       success: true,
+      data: aiAnalysis.data,
       prediction: prediction,
-      dataPoints: dataPoints,
+      dataPoints: recentIssues.length,
       timestamp: new Date().toISOString(),
-      source: 'main-server'
+      source: 'ai-server'
     });
 
   } catch (error) {
@@ -597,12 +635,72 @@ router.get('/predictive-analytics', auth, async (req, res) => {
     
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching issue',
+      message: 'Server error while fetching predictive analytics',
       error: error.message,
       timestamp: new Date().toISOString()
     });
   }
 });
+
+// Helper function to generate prediction from AI analysis
+function generatePredictionFromAIAnalysis(aiData, recentIssues) {
+  // Analyze recent issues to predict next likely issue
+  const categoryCounts = {};
+  const locationCounts = {};
+  
+  recentIssues.slice(0, 10).forEach(issue => {
+    // Count categories
+    if (issue.category) {
+      categoryCounts[issue.category] = (categoryCounts[issue.category] || 0) + 1;
+    }
+    
+    // Count locations
+    if (issue.location && typeof issue.location === 'string') {
+      const area = issue.location.split(',')[0].trim();
+      locationCounts[area] = (locationCounts[area] || 0) + 1;
+    }
+  });
+
+  // Find most frequent category and location
+  const topCategory = Object.entries(categoryCounts)
+    .sort(([,a], [,b]) => b - a)[0];
+  const topLocation = Object.entries(locationCounts)
+    .sort(([,a], [,b]) => b - a)[0];
+
+  // Generate prediction based on patterns
+  const predictions = [
+    {
+      issue: "Continued " + (topCategory ? topCategory[0] : "Infrastructure Issues"),
+      riskScore: Math.min(0.95, (aiData.overallRiskScore || 50) / 100),
+      recommendedAction: generateRecommendation(topCategory, topLocation, aiData),
+      predictedDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 days from now
+      hotspotAreas: aiData.highRiskAreas?.slice(0, 3).map(area => area.area) || 
+                   (topLocation ? [topLocation[0]] : ["Recent Issue Areas"])
+    }
+  ];
+
+  return predictions[0];
+}
+
+// Helper function to generate recommendations
+function generateRecommendation(topCategory, topLocation, aiData) {
+  const recommendations = [];
+  
+  if (topCategory) {
+    recommendations.push(`Focus resources on ${topCategory[0]} issues`);
+  }
+  
+  if (topLocation) {
+    recommendations.push(`Monitor ${topLocation[0]} area closely`);
+  }
+  
+  if (aiData.recommendations && aiData.recommendations.length > 0) {
+    const topRecommendation = aiData.recommendations[0];
+    recommendations.push(topRecommendation.message);
+  }
+  
+  return recommendations.join('. ') + '.';
+}
 
 // @route   GET /api/issues/:id
 // @desc    Get single issue by ID
@@ -796,6 +894,9 @@ router.put('/:id/status', departmentAuth, upload.fields([
       fs.renameSync(afterPhoto.path, path.join(proofDir, afterPhoto.filename));
     }
 
+    // Store old status for notification
+    const oldStatus = issue.status;
+
     // Update status and timeline
     issue.updateStatus(status, description, req.userId);
 
@@ -813,6 +914,9 @@ router.put('/:id/status', departmentAuth, upload.fields([
     }
 
     await issue.save();
+
+    // Send notification for status update
+    await NotificationService.notifyIssueStatusUpdate(issue, oldStatus, status);
 
     // Emit real-time update via Socket.IO
     if (global.emitIssueUpdate) {

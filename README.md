@@ -1,6 +1,6 @@
-# Jharkhand Civic Issues Platform
+# Nivaran Platform
 
-A modern, accessible, and effective crowdsourced civic issue reporting and resolution system for the Government of Jharkhand. This platform enables citizens to report civic issues, track their resolution, and engage with their community to build better neighborhoods.
+A modern, accessible, and effective issue reporting and resolution system. This platform enables users to report issues, track their resolution, and engage with their community to build better neighborhoods.
 
 ## 🌟 Features
 
@@ -63,7 +63,7 @@ A modern, accessible, and effective crowdsourced civic issue reporting and resol
 ### 1. Clone the Repository
 ```bash
 git clone <repository-url>
-cd jharkhand-civic-issues
+cd nivaran-platform
 ```
 
 ### 2. Install Dependencies
@@ -85,7 +85,7 @@ npm install
 Create a `.env` file in the `server` directory:
 
 ```env
-MONGODB_URI=mongodb://localhost:27017/jharkhand-civic
+MONGODB_URI=mongodb://localhost:27017/nivaran-platform
 JWT_SECRET=your_jwt_secret_key_here
 CLIENT_URL=http://localhost:3000
 PORT=5000
@@ -110,7 +110,7 @@ npm run setup-admin
 ```
 
 This will create:
-- Admin user: `admin@jharkhand.gov.in` / `admin123456`
+- Admin user: `admin@nivaran.com` / `admin123456`
 - Sample department staff accounts
 - Default departments (Public Works, Municipal Corporation, Water Board, etc.)
 
@@ -147,7 +147,7 @@ npm start
 ### For Citizens
 
 1. **Register/Login**: Create an account or sign in
-2. **Report Issues**: Use the "Report Issue" page to submit civic problems
+2. **Report Issues**: Use the "Report Issue" page to submit problems
 3. **Track Progress**: Monitor your reports in the dashboard
 4. **Engage Community**: Upvote, comment, and confirm other issues
 5. **View Map**: See all issues on the interactive map
@@ -176,7 +176,7 @@ npm start
 ## 🗂️ Project Structure
 
 ```
-jharkhand-civic-issues/
+nivaran-platform/
 ├── server/                 # Backend API
 │   ├── config/            # Database configuration
 │   ├── middleware/        # Custom middleware
@@ -323,4 +323,4 @@ For support and questions:
 
 ---
 
-**Built with ❤️ for the Government of Jharkhand**
+**Built with ❤️ for better issue resolution**

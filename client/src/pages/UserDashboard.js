@@ -89,7 +89,7 @@ const UserDashboard = () => {
         socket.emit('leave-user', user._id || user.id);
       };
     }
-  }, [socket, user, refetchStats]);
+  }, [socket, user]); // Remove refetchStats from dependencies to prevent infinite loops
 
   const stats = dashboardStats?.stats || {};
   const unreadNotifications = notificationsData?.unreadCount || 0;

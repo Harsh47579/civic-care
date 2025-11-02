@@ -32,7 +32,7 @@ router.get('/reports', auth, [
     } = req.query;
 
     const skip = (page - 1) * limit;
-    const filter = { reportedBy: req.userId };
+    const filter = { reporter: req.userId };
     
     if (status) filter.status = status;
 
@@ -52,8 +52,21 @@ router.get('/reports', auth, [
 
     const total = await Issue.countDocuments(filter);
 
-    // Get user stats
-    const userStats = await User.findById(req.userId).select('stats rewards');
+    // Get user stats and calculate real-time statistics
+    const [userStats, realTimeStats] = await Promise.all([
+      User.findById(req.userId).select('stats rewards'),
+      // Calculate real-time statistics from actual issues
+      Promise.all([
+        Issue.countDocuments({ reporter: req.userId }),
+        Issue.countDocuments({ reporter: req.userId, status: 'resolved' }),
+        Issue.countDocuments({ reporter: req.userId, status: 'in_progress' }),
+        Issue.countDocuments({ reporter: req.userId, status: 'new' }),
+        Issue.countDocuments({ reporter: req.userId, status: 'rejected' }),
+        Issue.countDocuments({ reporter: req.userId, status: 'closed' })
+      ])
+    ]);
+
+    const [totalReports, resolvedReports, inProgressReports, newReports, rejectedReports, closedReports] = realTimeStats;
     
     // Get recent activity for timeline
     const recentActivity = await ActivityTracker.getUserActivitySummary(req.userId, {
@@ -72,8 +85,12 @@ router.get('/reports', auth, [
         pages: Math.ceil(total / limit)
       },
       stats: {
-        totalReports: userStats?.stats?.reportsSubmitted || 0,
-        resolvedReports: userStats?.stats?.reportsResolved || 0,
+        totalReports,
+        resolvedReports,
+        inProgressReports,
+        newReports,
+        rejectedReports,
+        closedReports,
         communityScore: userStats?.stats?.communityScore || 0,
         coins: userStats?.rewards?.coins || 0,
         points: userStats?.rewards?.points || 0
@@ -321,66 +338,112 @@ router.put('/settings', auth, [
 // @access  Private
 router.get('/dashboard-stats', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select('stats rewards preferences');
+    console.log('Dashboard stats request for user:', req.userId);
+    
+    if (!req.userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID not found in request'
+      });
+    }
+    
+    // Convert to ObjectId for user lookup
+    const mongoose = require('mongoose');
+    const userObjectId = new mongoose.Types.ObjectId(req.userId);
+    
+    const user = await User.findById(userObjectId).select('stats rewards preferences name email role');
+    
+    if (!user) {
+      console.log('User not found for ID:', req.userId);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    console.log('User found:', user.name, user.email);
+    
+    // Convert userId to ObjectId for MongoDB queries
+    const userId = userObjectId;
     
     // Get recent reports
-    const recentReports = await Issue.find({ reportedBy: req.userId })
+    const recentReports = await Issue.find({ reporter: userId })
       .select('title status createdAt category priority')
       .sort({ createdAt: -1 })
       .limit(5);
 
     // Get reports by status
-    const reportsByStatus = await Issue.aggregate([
-      { $match: { reportedBy: req.userId } },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
+    let reportsByStatus = [];
+    try {
+      reportsByStatus = await Issue.aggregate([
+        { $match: { reporter: userId } },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 }
+          }
         }
-      }
-    ]);
+      ]);
+    } catch (error) {
+      console.error('Error in reportsByStatus aggregation:', error);
+    }
 
     // Get reports by category
-    const reportsByCategory = await Issue.aggregate([
-      { $match: { reportedBy: req.userId } },
-      {
-        $group: {
-          _id: '$category',
-          count: { $sum: 1 }
+    let reportsByCategory = [];
+    try {
+      reportsByCategory = await Issue.aggregate([
+        { $match: { reporter: userId } },
+        {
+          $group: {
+            _id: '$category',
+            count: { $sum: 1 }
+          }
         }
-      }
-    ]);
+      ]);
+    } catch (error) {
+      console.error('Error in reportsByCategory aggregation:', error);
+    }
 
     // Get monthly report trends
-    const monthlyTrends = await Issue.aggregate([
-      { $match: { reportedBy: req.userId } },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id.year': -1, '_id.month': -1 } },
-      { $limit: 12 }
-    ]);
+    let monthlyTrends = [];
+    try {
+      monthlyTrends = await Issue.aggregate([
+        { $match: { reporter: userId } },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.year': -1, '_id.month': -1 } },
+        { $limit: 12 }
+      ]);
+    } catch (error) {
+      console.error('Error in monthlyTrends aggregation:', error);
+    }
 
     // Get community engagement
-    const communityEngagement = await Issue.aggregate([
-      { $match: { reportedBy: req.userId } },
-      {
-        $group: {
-          _id: null,
-          totalUpvotes: { $sum: { $size: '$community.upvotes' } },
-          totalConfirmations: { $sum: { $size: '$community.confirmations' } },
-          totalComments: { $sum: { $size: '$community.comments' } }
+    let communityEngagement = [];
+    try {
+      communityEngagement = await Issue.aggregate([
+        { $match: { reporter: userId } },
+        {
+          $group: {
+            _id: null,
+            totalUpvotes: { $sum: { $size: '$community.upvotes' } },
+            totalConfirmations: { $sum: { $size: '$community.confirmations' } },
+            totalComments: { $sum: { $size: '$community.comments' } }
+          }
         }
-      }
-    ]);
+      ]);
+    } catch (error) {
+      console.error('Error in communityEngagement aggregation:', error);
+    }
 
-    res.json({
+    const responseData = {
       success: true,
       stats: {
         user: {
@@ -405,7 +468,10 @@ router.get('/dashboard-stats', auth, async (req, res) => {
         },
         trends: monthlyTrends
       }
-    });
+    };
+    
+    console.log('Dashboard stats response prepared successfully');
+    res.json(responseData);
   } catch (error) {
     console.error('Get dashboard stats error:', error);
     res.status(500).json({

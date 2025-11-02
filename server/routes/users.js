@@ -242,6 +242,10 @@ router.get('/dashboard-data', auth, async (req, res) => {
     const [
       totalReports,
       resolvedReports,
+      inProgressReports,
+      newReports,
+      rejectedReports,
+      closedReports,
       unreadNotifications,
       recentReports,
       userStats
@@ -253,6 +257,30 @@ router.get('/dashboard-data', auth, async (req, res) => {
       Issue.countDocuments({ 
         reporter: userId, 
         status: 'resolved' 
+      }),
+      
+      // Count in progress reports
+      Issue.countDocuments({ 
+        reporter: userId, 
+        status: 'in_progress' 
+      }),
+      
+      // Count new reports
+      Issue.countDocuments({ 
+        reporter: userId, 
+        status: 'new' 
+      }),
+      
+      // Count rejected reports
+      Issue.countDocuments({ 
+        reporter: userId, 
+        status: 'rejected' 
+      }),
+      
+      // Count closed reports
+      Issue.countDocuments({ 
+        reporter: userId, 
+        status: 'closed' 
       }),
       
       // Count unread notifications
@@ -274,17 +302,6 @@ router.get('/dashboard-data', auth, async (req, res) => {
         .lean()
     ]);
 
-    // Calculate additional stats
-    const inProgressReports = await Issue.countDocuments({ 
-      reporter: userId, 
-      status: 'in_progress' 
-    });
-    
-    const pendingReports = await Issue.countDocuments({ 
-      reporter: userId, 
-      status: 'new' 
-    });
-
     // Prepare response data
     const dashboardData = {
       success: true,
@@ -293,7 +310,9 @@ router.get('/dashboard-data', auth, async (req, res) => {
         totalReports,
         resolvedReports,
         inProgressReports,
-        pendingReports,
+        newReports,
+        rejectedReports,
+        closedReports,
         unreadNotifications,
         communityScore: userStats?.stats?.communityScore || 0
       },

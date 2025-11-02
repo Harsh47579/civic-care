@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import { Camera, MapPin, CheckCircle, Clock, Users, TrendingUp, Shield } from 'lucide-react';
 import axios from 'axios';
+import NivaranIcon from '../components/NivaranIcon';
 
 const Home = () => {
   // Fetch statistics
@@ -11,8 +12,8 @@ const Home = () => {
     return {
       totalIssues: response.data.pagination.total,
       resolvedIssues: Math.floor(response.data.pagination.total * 0.92),
-      avgResponseTime: '48h',
-      activeCitizens: 15623,
+      avgResponseTime: '7h',
+      activeCitizens: 65479 ,
     };
   });
 
@@ -52,10 +53,13 @@ const Home = () => {
         }}></div>
         
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
-            Building Better Communities
-            <span className="block text-yellow-400">Together</span>
-          </h1>
+          <div className="flex flex-col items-center justify-center mb-6">
+            <NivaranIcon size="xxl" className="mb-4" />
+            <h1 className="text-5xl md:text-6xl font-bold text-white text-center">
+              Building Better Communities
+              <span className="block text-yellow-400">Together</span>
+            </h1>
+          </div>
           <p className="text-xl text-dark-300 mb-8 max-w-3xl mx-auto">
             Report civic issues, track their resolution, and help make Jharkhand a better place for everyone. 
             Your voice matters in building stronger communities.

@@ -7,13 +7,19 @@ const User = require('../models/User');
 const AIService = require('../services/AIService');
 const llmService = require('../services/llmService');
 
+// Test endpoint
+router.get('/test', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Chat API is working',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // @route   POST /api/chat/message
 // @desc    Send a message to the AI chatbot with enhanced civic care NLP
 // @access  Private
-router.post('/message', auth, [
-  body('message').trim().isLength({ min: 1, max: 1000 }).withMessage('Message must be 1-1000 characters'),
-  body('conversationId').optional().isString()
-], async (req, res) => {
+router.post('/message', auth, async (req, res) => {
   try {
     console.log('🔍 Chat message request received:', {
       headers: req.headers,
@@ -23,27 +29,62 @@ router.post('/message', auth, [
       timestamp: new Date().toISOString()
     });
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
-      return res.status(400).json({ 
+    // Check if user is authenticated
+    if (!req.userId) {
+      console.log('❌ No user ID found in request');
+      return res.status(401).json({ 
         success: false,
-        errors: errors.array(),
-        message: 'Invalid message format'
+        message: 'Authentication required'
       });
     }
-
+    
+    if (!req.user) {
+      console.log('❌ No user object found in request');
+      return res.status(401).json({ 
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
     const { message, conversationId } = req.body;
     const userId = req.userId;
     
     console.log('💬 Processing message:', { 
-      message: message.substring(0, 100) + '...', 
+      message: message?.substring(0, 100) + '...', 
+      messageLength: message?.length,
       conversationId, 
       userId 
     });
+    
+    // Manual validation
+    if (!message) {
+      console.log('❌ No message provided');
+      return res.status(400).json({ 
+        success: false,
+        message: 'Message is required'
+      });
+    }
+    
+    // Trim the message
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) {
+      console.log('❌ Message is empty after trimming');
+      return res.status(400).json({ 
+        success: false,
+        message: 'Message cannot be empty'
+      });
+    }
+    
+    if (trimmedMessage.length > 1000) {
+      console.log('❌ Message too long');
+      return res.status(400).json({ 
+        success: false,
+        message: 'Message must be less than 1000 characters'
+      });
+    }
 
     // Enhanced NLP processing for civic care issues
-    const nlpResponse = processCivicCareMessage(message);
+    const nlpResponse = processCivicCareMessage(trimmedMessage);
     
     let aiResponse;
     let conversation;
@@ -63,13 +104,13 @@ router.post('/message', auth, [
       }
 
       // Add user message
-      await conversation.addMessage(message, 'user', userId);
+      await conversation.addMessage(trimmedMessage, 'user', userId);
 
       // Generate dynamic response using LLM
       console.log('🤖 Generating dynamic response using LLM');
       try {
         aiResponse = await llmService.generateResponse({
-          userMessage: message,
+          userMessage: trimmedMessage,
           nlpData: {
             category: nlpResponse.category,
             department: nlpResponse.department,
@@ -82,7 +123,7 @@ router.post('/message', auth, [
       } catch (llmError) {
         console.error('❌ LLM generation failed, using fallback:', llmError.message);
         // Fallback to enhanced rule-based response
-        aiResponse = llmService.generateEnhancedFallback(message, {
+        aiResponse = llmService.generateEnhancedFallback(trimmedMessage, {
           category: nlpResponse.category,
           department: nlpResponse.department,
           confidence: nlpResponse.confidence,
@@ -489,40 +530,51 @@ router.put('/conversation/:conversationId/status', auth, [
 function processCivicCareMessage(message) {
   try {
     const lowerMessage = message.toLowerCase();
+    console.log('🔍 Processing message:', message);
+    console.log('🔍 Lowercase message:', lowerMessage);
     
     // Define civic care issue categories with keywords
     const civicCategories = {
       water: {
-        keywords: ['water', 'drinking water', 'water supply', 'tap water', 'water pressure', 'water quality', 'leak', 'leakage', 'pipeline', 'water tank', 'water problem', 'water issue'],
+        keywords: ['water', 'drinking water', 'water supply', 'tap water', 'water pressure', 'water quality', 'leak', 'leakage', 'pipeline', 'water tank', 'water problem', 'water issue', 'shortage', 'cut', 'disconnection', 'billing', 'meter', 'connection', 'taste', 'filter', 'purification', 'dirty', 'brown', 'smelly'],
         responses: [
-          "It looks like your query is about water supply. Please provide location details to report this issue.",
-          "Water issues are handled by the Water Department. Would you like me to help you file a report?",
-          "I can help you report water-related issues. Please tell me your location and the specific problem."
+          "I understand you're facing water supply issues. This is a critical civic problem that needs immediate attention. Let me help you report this to the Water Board with proper documentation and priority classification.",
+          "Water is essential for daily life and public health. I'll help you escalate this water-related issue to the Water Board immediately and ensure it gets the attention it deserves.",
+          "I can help you report water problems effectively. Please provide details about the location, duration, and specific issues you're experiencing so I can create a comprehensive report for faster resolution."
         ],
-        department: "Water Department",
-        escalation: "Contact Water Department at +91-XXX-XXXX"
+        department: "Water Board",
+        priority: "high",
+        escalation: "This water issue will be escalated to senior officials for immediate action. Contact Water Board at +91-XXX-XXXX",
+        followUp: "Would you like me to help you create a detailed report with photos and location details for faster resolution?",
+        aiFeatures: ["Location mapping", "Priority assessment", "Photo documentation", "Follow-up tracking"]
       },
       
       garbage: {
-        keywords: ['garbage', 'waste', 'trash', 'rubbish', 'litter', 'dumping', 'collection', 'dustbin', 'bin', 'cleanliness'],
+        keywords: ['garbage', 'waste', 'trash', 'rubbish', 'litter', 'dumping', 'collection', 'dustbin', 'bin', 'cleanliness', 'recycling', 'segregation', 'compost', 'landfill', 'pickup', 'schedule', 'overflowing', 'stray', 'animals', 'smell', 'dirty'],
         responses: [
-          "Garbage issues are usually handled by Waste Management. Do you want me to file a report?",
-          "I can help you report waste management issues. Please specify your location and the type of problem.",
-          "Waste collection problems can be reported through our system. Let me help you with that."
+          "I see you're concerned about waste management. This affects public health and hygiene significantly. Let me help you report this to the Municipal Corporation with proper categorization and priority classification.",
+          "Garbage disposal issues are important for community health and environmental safety. I'll help you get this resolved quickly and ensure proper waste management practices are followed.",
+          "I can assist you with comprehensive waste management issues. Please provide details about the location, type of waste, and frequency of collection problems so I can create an effective report."
         ],
-        department: "Waste Management",
-        escalation: "Contact Waste Management at +91-XXX-XXXX"
+        department: "Municipal Corporation",
+        priority: "medium",
+        escalation: "This waste management issue will be reported to the sanitation department for immediate cleanup. Contact Municipal Corporation at +91-XXX-XXXX",
+        followUp: "Would you like information about proper waste segregation and recycling practices?",
+        aiFeatures: ["Waste categorization", "Collection scheduling", "Health impact assessment", "Community awareness"]
       },
       
       pothole: {
-        keywords: ['pothole', 'potholes', 'road', 'street', 'pavement', 'asphalt', 'crater', 'road damage', 'bumpy road', 'road repair', 'hole in road', 'road hole'],
+        keywords: ['pothole', 'potholes', 'road', 'street', 'pavement', 'asphalt', 'crater', 'road damage', 'bumpy road', 'road repair', 'hole in road', 'road hole', 'crack', 'bump', 'flooded', 'narrow', 'widening', 'speed', 'bump', 'signage', 'markings', 'construction', 'maintenance'],
         responses: [
-          "I can help you report pothole issues! Potholes are a serious road safety concern. Please provide the exact location so we can get this fixed quickly.",
-          "Pothole reports are prioritized for public safety. Tell me the street name and approximate location, and I'll help you file a report with the Roads Department.",
-          "Road potholes can cause vehicle damage and accidents. I'll help you report this to the Roads Department right away. What's the exact location?"
+          "Road infrastructure issues are serious safety concerns that need immediate attention. Let me help you report this to the Public Works Department with detailed documentation for immediate repair and safety measures.",
+          "I understand you're facing road problems that could affect public safety and daily commute. I'll help you escalate this to the appropriate department with priority classification and safety assessment.",
+          "Road maintenance is crucial for public safety and smooth transportation. Please provide details about the specific road issues, location, and any safety hazards you've observed so I can create a comprehensive report."
         ],
-        department: "Roads Department",
-        escalation: "Contact Roads Department at +91-XXX-XXXX"
+        department: "Public Works Department",
+        priority: "high",
+        escalation: "This road safety issue will be escalated to the engineering department for immediate assessment and repair. Contact PWD at +91-XXX-XXXX",
+        followUp: "Would you like me to help you document the road condition with photos for faster repair approval?",
+        aiFeatures: ["Safety assessment", "Traffic impact analysis", "Repair priority", "Photo documentation"]
       },
       
       lighting: {
@@ -548,14 +600,59 @@ function processCivicCareMessage(message) {
       },
       
       drainage: {
-        keywords: ['drain', 'sewer', 'flooding', 'water logging', 'blocked drain', 'sewage', 'overflow', 'monsoon', 'rain'],
+        keywords: ['drain', 'sewer', 'flooding', 'water logging', 'blocked drain', 'sewage', 'overflow', 'monsoon', 'rain', 'drainage', 'waterlogging', 'blocked', 'clogged', 'smell', 'wastewater', 'manhole', 'cover', 'broken', 'stagnant', 'mosquito', 'disease', 'health'],
         responses: [
-          "Drainage issues are critical during monsoon. Please provide immediate location details.",
-          "I can help you report drainage problems. This is urgent - please specify the exact location.",
-          "Drainage and sewage issues require immediate attention. Let me help you report this quickly."
+          "Drainage problems can cause serious health and safety issues, including waterborne diseases. Let me help you report this to the Municipal Corporation with priority classification and health impact assessment.",
+          "I understand you're facing drainage issues that could lead to waterlogging and health problems. I'll help you escalate this to the appropriate department immediately for public health protection.",
+          "Proper drainage is essential for public health and preventing waterborne diseases. Please provide details about the drainage problem, its impact on the community, and any health concerns you've noticed."
         ],
         department: "Municipal Corporation",
-        escalation: "Contact Municipal Corporation at +91-XXX-XXXX"
+        priority: "high",
+        escalation: "This drainage issue will be escalated to the health department for immediate action to prevent disease spread. Contact Municipal Corporation at +91-XXX-XXXX",
+        followUp: "Would you like me to help you report this as a health hazard for immediate cleanup?",
+        aiFeatures: ["Health impact assessment", "Disease prevention", "Flood risk analysis", "Community health monitoring"]
+      },
+      
+      electricity: {
+        keywords: ['electricity', 'power', 'outage', 'cut', 'supply', 'transformer', 'wire', 'cable', 'shock', 'spark', 'flicker', 'voltage', 'meter', 'billing', 'connection', 'disconnection', 'safety', 'electrical', 'energy'],
+        responses: [
+          "Power supply issues are critical for daily life and can affect essential services. Let me help you report this to the Electricity Board with proper documentation for immediate restoration and safety assessment.",
+          "I understand you're facing electricity problems that could impact your daily activities. I'll help you escalate this to the power department with priority classification for quick resolution and safety measures.",
+          "Electricity is essential for modern life and public services. I'll help you get this power issue resolved quickly and ensure reliable supply for your area."
+        ],
+        department: "Electricity Board",
+        priority: "high",
+        escalation: "This power issue will be escalated to the emergency response team for immediate restoration. Contact Electricity Board at +91-XXX-XXXX",
+        followUp: "Would you like me to help you report this as an emergency power outage?",
+        aiFeatures: ["Power grid analysis", "Safety assessment", "Emergency response", "Service restoration tracking"]
+      },
+      
+      healthcare: {
+        keywords: ['hospital', 'clinic', 'doctor', 'medicine', 'pharmacy', 'ambulance', 'emergency', 'health', 'medical', 'treatment', 'facility', 'staff', 'appointment', 'queue', 'waiting', 'service', 'patient', 'care', 'nurse', 'bed', 'equipment'],
+        responses: [
+          "Healthcare services are critical for public welfare and life. Let me help you report this health-related issue to the Health Department with proper documentation and priority classification.",
+          "I understand you're facing healthcare problems that could affect public health. I'll help you escalate this to the health department for immediate attention and resolution.",
+          "Access to quality healthcare is a fundamental right. I'll help you get this health issue resolved quickly and ensure proper medical services are available for everyone."
+        ],
+        department: "Health Department",
+        priority: "high",
+        escalation: "This healthcare issue will be escalated to the health commissioner for immediate action. Contact Health Department at +91-XXX-XXXX",
+        followUp: "Would you like me to help you connect with emergency health services if this is urgent?",
+        aiFeatures: ["Health service assessment", "Emergency response", "Patient care tracking", "Medical facility monitoring"]
+      },
+      
+      education: {
+        keywords: ['school', 'college', 'education', 'teacher', 'student', 'classroom', 'facility', 'infrastructure', 'admission', 'fees', 'quality', 'learning', 'books', 'uniform', 'midday', 'meal', 'library', 'laboratory', 'playground', 'transport'],
+        responses: [
+          "Education is the foundation of development and future prosperity. Let me help you report this education-related issue to the Education Department for proper resolution and quality improvement.",
+          "I understand you're concerned about educational facilities and quality. I'll help you escalate this to the education department for immediate attention and better learning outcomes.",
+          "Quality education is essential for children's future and community development. I'll help you get this education issue resolved quickly and ensure proper learning facilities are available."
+        ],
+        department: "Education Department",
+        priority: "medium",
+        escalation: "This education issue will be escalated to the education director for immediate action. Contact Education Department at +91-XXX-XXXX",
+        followUp: "Would you like me to help you connect with education officials for immediate assistance?",
+        aiFeatures: ["Educational quality assessment", "Infrastructure monitoring", "Student welfare tracking", "Learning outcome analysis"]
       }
     };
     
@@ -564,27 +661,27 @@ function processCivicCareMessage(message) {
     let confidence = 0;
     
     for (const [category, config] of Object.entries(civicCategories)) {
-      const matches = config.keywords.filter(keyword => lowerMessage.includes(keyword));
-      let categoryConfidence = matches.length / config.keywords.length;
+      // Simple keyword matching - check if any keyword is in the message
+      const matches = config.keywords.filter(keyword => lowerMessage.includes(keyword.toLowerCase()));
       
-      // Boost confidence for compound phrases
+      console.log(`🔍 Checking ${category}: matches=${matches.length}, keywords checked:`, config.keywords.slice(0, 5));
+      
       if (matches.length > 0) {
-        const compoundPhrases = lowerMessage.split(' ').filter(word => 
-          config.keywords.some(keyword => keyword.includes(word) || word.includes(keyword))
-        );
-        if (compoundPhrases.length > 1) {
-          categoryConfidence += 0.2; // Boost confidence for compound phrases
+        // Simple confidence based on number of matches
+        let categoryConfidence = matches.length * 0.3; // Each match adds 0.3 confidence
+        
+        console.log(`🔍 ${category} confidence: ${categoryConfidence}`);
+        
+        if (categoryConfidence > confidence) {
+          confidence = categoryConfidence;
+          detectedCategory = category;
+          console.log(`✅ Detected category: ${category} with confidence: ${confidence}`);
         }
-      }
-      
-      if (categoryConfidence > confidence) {
-        confidence = categoryConfidence;
-        detectedCategory = category;
       }
     }
     
     // Generate response based on detected category
-    if (detectedCategory && confidence > 0.1) {
+    if (detectedCategory && confidence > 0.05) {
       const categoryConfig = civicCategories[detectedCategory];
       const randomResponse = categoryConfig.responses[Math.floor(Math.random() * categoryConfig.responses.length)];
       
@@ -592,23 +689,35 @@ function processCivicCareMessage(message) {
         message: randomResponse,
         category: detectedCategory,
         department: categoryConfig.department,
+        priority: categoryConfig.priority || 'medium',
         escalation: categoryConfig.escalation,
+        followUp: categoryConfig.followUp || generateFollowUpQuestions(detectedCategory),
+        aiFeatures: categoryConfig.aiFeatures || [],
         confidence: confidence,
-        followUp: generateFollowUpQuestions(detectedCategory)
+        timestamp: new Date().toISOString(),
+        status: 'detected',
+        urgency: confidence > 0.7 ? 'high' : confidence > 0.4 ? 'medium' : 'low'
       };
     }
     
-    // Default response for unrecognized messages
+    // Enhanced default response for unrecognized messages
     return {
-      message: "I'm here to help with civic care issues. You can ask about water supply, garbage collection, road problems, street lighting, traffic issues, or drainage problems. How can I assist you today?",
+      message: "I'm here to help with civic care issues. You can ask about water supply, garbage collection, road problems, street lighting, traffic issues, drainage problems, electricity issues, healthcare services, or education facilities. How can I assist you today?",
       category: 'general',
       department: 'General Support',
+      priority: 'low',
+      escalation: "For general inquiries, please contact our support team at +91-XXX-XXXX",
       confidence: 0,
       followUp: [
         "What type of civic issue are you facing?",
         "Please provide your location for better assistance",
-        "Would you like to file a formal report?"
-      ]
+        "Would you like to file a formal report?",
+        "I can help you with water, waste, roads, lighting, traffic, drainage, electricity, healthcare, or education issues"
+      ],
+      aiFeatures: ["Issue categorization", "Department routing", "Priority assessment"],
+      timestamp: new Date().toISOString(),
+      status: 'general_inquiry',
+      urgency: 'low'
     };
     
   } catch (error) {

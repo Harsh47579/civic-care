@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import { 
   Brain, 
@@ -9,21 +9,28 @@ import {
   RefreshCw,
   Loader2,
   Eye,
-  EyeOff
+  EyeOff,
+  Activity,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import useSocket from '../hooks/useSocket';
 
-const AIPredictionsWidget = () => {
+const AIPredictionsWidget = ({ recentIssues = [] }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [isLive, setIsLive] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState('connected');
+  const socket = useSocket();
 
-  // Fetch predictive analytics data
+  // Fetch predictive analytics data with more frequent updates
   const { data, isLoading, error, refetch } = useQuery(
     'predictiveAnalytics',
     async () => {
       try {
-        console.log('🔄 Fetching predictive analytics...');
+        console.log('🔄 Fetching live predictive analytics...');
         const response = await axios.get('/api/issues/predictive-analytics', {
           timeout: 30000, // 30 second timeout
           headers: {
@@ -31,7 +38,7 @@ const AIPredictionsWidget = () => {
           }
         });
         
-        console.log('✅ Predictive analytics response:', response.data);
+        console.log('✅ Live predictive analytics response:', response.data);
         
         if (!response.data.success) {
           throw new Error(response.data.message || 'Server returned unsuccessful response');
@@ -53,8 +60,10 @@ const AIPredictionsWidget = () => {
         
         // Enhanced error handling with specific error types
         if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+          setConnectionStatus('disconnected');
           throw new Error('Cannot connect to server. Please check if the backend is running.');
         } else if (error.code === 'ECONNABORTED') {
+          setConnectionStatus('timeout');
           throw new Error('Request timeout. The server is taking too long to respond.');
         } else if (error.response?.status === 401) {
           throw new Error('Authentication required. Please log in as an admin.');
@@ -67,6 +76,7 @@ const AIPredictionsWidget = () => {
         } else if (error.response?.status >= 400) {
           throw new Error(`HTTP ${error.response.status}: ${error.response?.data?.message || error.response.statusText}`);
         } else if (!error.response) {
+          setConnectionStatus('disconnected');
           throw new Error('Network error. Please check your internet connection.');
         } else {
           throw new Error(`Failed to load predictions: ${error.message}`);
@@ -74,13 +84,16 @@ const AIPredictionsWidget = () => {
       }
     },
     {
-      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchInterval: isLive ? 60000 : false, // Refetch every 1 minute when live, disabled when paused
+      refetchIntervalInBackground: true,
       onSuccess: () => {
         setLastUpdated(new Date());
-        console.log('✅ Predictive analytics loaded successfully');
+        setConnectionStatus('connected');
+        console.log('✅ Live predictive analytics updated successfully');
       },
       onError: (error) => {
         console.error('❌ Query error:', error);
+        setConnectionStatus('error');
       },
       retry: (failureCount, error) => {
         // Don't retry on authentication errors
@@ -94,12 +107,82 @@ const AIPredictionsWidget = () => {
     }
   );
 
+  // Listen for real-time updates via socket
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewIssue = (newIssue) => {
+      console.log('🔄 New issue detected, refreshing predictions...', newIssue);
+      if (isLive) {
+        refetch();
+        toast.success('Predictions updated with new issue data');
+      }
+    };
+
+    const handleIssueUpdate = (updatedIssue) => {
+      console.log('🔄 Issue updated, refreshing predictions...', updatedIssue);
+      if (isLive) {
+        refetch();
+      }
+    };
+
+    const handleConnectionStatus = (status) => {
+      setConnectionStatus(status);
+    };
+
+    // Listen for new issues and updates
+    socket.on('newIssue', handleNewIssue);
+    socket.on('issueUpdated', handleIssueUpdate);
+    socket.on('connectionStatus', handleConnectionStatus);
+
+    return () => {
+      socket.off('newIssue', handleNewIssue);
+      socket.off('issueUpdated', handleIssueUpdate);
+      socket.off('connectionStatus', handleConnectionStatus);
+    };
+  }, [socket, isLive, refetch]);
+
   const handleRefresh = async () => {
     try {
       await refetch();
       toast.success('Predictive analytics updated');
     } catch (error) {
       toast.error('Failed to refresh analytics');
+    }
+  };
+
+  const toggleLiveUpdates = () => {
+    setIsLive(!isLive);
+    toast.success(`Live updates ${!isLive ? 'enabled' : 'disabled'}`);
+  };
+
+  const getConnectionIcon = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return <Wifi className="w-4 h-4 text-green-500" />;
+      case 'disconnected':
+        return <WifiOff className="w-4 h-4 text-red-500" />;
+      case 'timeout':
+        return <WifiOff className="w-4 h-4 text-yellow-500" />;
+      case 'error':
+        return <WifiOff className="w-4 h-4 text-red-500" />;
+      default:
+        return <Wifi className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  const getConnectionText = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return 'Connected';
+      case 'disconnected':
+        return 'Disconnected';
+      case 'timeout':
+        return 'Timeout';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -255,13 +338,41 @@ const AIPredictionsWidget = () => {
           <div className="flex items-center">
             <Brain className="w-6 h-6 text-primary-500 mr-2" />
             <div>
-              <h3 className="text-lg font-semibold text-white">AI Predictions</h3>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-lg font-semibold text-white">AI Predictions</h3>
+                {isLive && (
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-400">LIVE</span>
+                  </div>
+                )}
+              </div>
               <p className="text-sm text-dark-300">
-                Proactive insights for the next 4 weeks
+                Proactive insights based on recent issues - Updates every minute
               </p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            {/* Connection Status */}
+            <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-dark-700">
+              {getConnectionIcon()}
+              <span className="text-xs text-dark-300">{getConnectionText()}</span>
+            </div>
+            
+            {/* Live Toggle */}
+            <button
+              onClick={toggleLiveUpdates}
+              className={`p-2 rounded-lg transition-colors ${
+                isLive 
+                  ? 'text-green-400 hover:text-green-300 bg-green-500/10' 
+                  : 'text-dark-300 hover:text-white bg-dark-700'
+              }`}
+              title={isLive ? "Pause live updates" : "Enable live updates"}
+            >
+              <Activity className="w-4 h-4" />
+            </button>
+            
+            {/* Refresh Button */}
             <button
               onClick={handleRefresh}
               className="p-2 text-dark-300 hover:text-white transition-colors"
@@ -269,6 +380,8 @@ const AIPredictionsWidget = () => {
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+            
+            {/* Expand/Collapse Button */}
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="p-2 text-dark-300 hover:text-white transition-colors"
@@ -279,14 +392,53 @@ const AIPredictionsWidget = () => {
           </div>
         </div>
         {lastUpdated && (
-          <p className="text-xs text-dark-400 mt-2">
-            Last updated: {lastUpdated.toLocaleTimeString()}
-          </p>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-dark-400">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+            {isLive && (
+              <p className="text-xs text-green-400">
+                Next update: {new Date(lastUpdated.getTime() + 60000).toLocaleTimeString()}
+              </p>
+            )}
+          </div>
         )}
       </div>
 
       {/* Content */}
       <div className="p-6">
+        {/* Recent Issues Analysis */}
+        {recentIssues.length > 0 && (
+          <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center">
+                <Activity className="w-4 h-4 mr-2 text-green-500" />
+                <span className="text-sm font-medium text-green-300">Recent Issues Analysis</span>
+              </div>
+              <span className="text-xs text-green-400">{recentIssues.length} recent issues</span>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              {/* Category breakdown */}
+              {Object.entries(
+                recentIssues.reduce((acc, issue) => {
+                  acc[issue.category || 'Other'] = (acc[issue.category || 'Other'] || 0) + 1;
+                  return acc;
+                }, {})
+              ).slice(0, 4).map(([category, count]) => (
+                <div key={category} className="text-center">
+                  <div className="text-lg font-bold text-green-400">{count}</div>
+                  <div className="text-xs text-green-300 truncate">{category}</div>
+                </div>
+              ))}
+            </div>
+            
+            <p className="text-xs text-green-300">
+              AI predictions are based on analysis of these recent issues and historical patterns
+            </p>
+          </div>
+        )}
+
         {/* Data Progress Indicator (when we have some data but not enough) */}
         {dataPoints > 0 && dataPoints < totalIssuesNeeded && (
           <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
@@ -328,18 +480,36 @@ const AIPredictionsWidget = () => {
           </div>
         </div>
 
-        {/* Current Prediction (Simple Format) */}
+        {/* Current Prediction (Live Format) */}
         {data?.prediction && (
           <div className="mb-6">
-            <h4 className="text-sm font-medium text-white mb-3 flex items-center">
-              <AlertTriangle className="w-4 h-4 mr-2 text-orange-500" />
-              Current Prediction
-            </h4>
-            <div className="bg-dark-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium text-white flex items-center">
+                <AlertTriangle className="w-4 h-4 mr-2 text-orange-500" />
+                Live Prediction
+                {isLive && (
+                  <div className="ml-2 flex items-center space-x-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-400">UPDATED</span>
+                  </div>
+                )}
+              </h4>
+              {data?.source && (
+                <span className="text-xs text-dark-400 px-2 py-1 bg-dark-700 rounded-full">
+                  {data.source === 'ai-server' ? 'AI Analysis' : 'Fallback'}
+                </span>
+              )}
+            </div>
+            <div className="bg-dark-700 rounded-lg p-4 border-l-4 border-orange-500">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h5 className="text-white font-medium">{predictions?.issue}</h5>
-                  <p className="text-dark-300 text-sm">Predicted Date: {predictions?.predictedDate}</p>
+                  <p className="text-dark-300 text-sm">
+                    Predicted Date: {predictions?.predictedDate}
+                    <span className="ml-2 text-xs text-dark-400">
+                      (Based on {dataPoints} recent issues)
+                    </span>
+                  </p>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold text-orange-500">
@@ -366,6 +536,26 @@ const AIPredictionsWidget = () => {
                   </div>
                 </div>
               )}
+
+              {/* Live Data Indicator */}
+              <div className="mt-3 pt-3 border-t border-dark-600 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1">
+                    <Activity className="w-3 h-3 text-green-500" />
+                    <span className="text-xs text-green-400">Live Analysis</span>
+                  </div>
+                  <span className="text-xs text-dark-400">•</span>
+                  <span className="text-xs text-dark-400">
+                    Updated {lastUpdated ? Math.round((Date.now() - lastUpdated.getTime()) / 1000) : 0}s ago
+                  </span>
+                </div>
+                {isLive && (
+                  <div className="flex items-center space-x-1">
+                    <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-400">Auto-refreshing</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

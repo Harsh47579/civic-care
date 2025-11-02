@@ -1,17 +1,17 @@
 {
-  "name": "jharkhand-civic-issues",
+  "name": "nivaran-issues",
   "version": "1.0.0",
-  "description": "Civic issue reporting and resolution system for Government of Jharkhand",
+  "description": "Issue reporting and resolution system - Nivaran Platform",
   "main": "server/index.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm start",
-    "build": "cd client && npm run build",
+    "build": "cd client && npm install && npm run build",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install"
   },
-  "keywords": ["civic", "government", "reporting", "issues", "jharkhand"],
-  "author": "Government of Jharkhand",
+  "keywords": ["issues", "reporting", "resolution", "platform", "nivaran"],
+  "author": "Nivaran Platform",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"

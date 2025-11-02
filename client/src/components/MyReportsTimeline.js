@@ -17,7 +17,8 @@ import {
   Calendar,
   Filter,
   Search,
-  RefreshCw
+  RefreshCw,
+  Award
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -85,7 +86,7 @@ const MyReportsTimeline = () => {
         socket.off('issue_update', handleIssueUpdate);
       };
     }
-  }, [socket, queryClient, searchTerm, statusFilter, sortBy, sortOrder, page]);
+  }, [socket, searchTerm, statusFilter, sortBy, sortOrder, page]); // Remove queryClient from dependencies
 
   const reports = reportsData?.reports || [];
   const stats = reportsData?.stats || {};
@@ -171,7 +172,7 @@ const MyReportsTimeline = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-dark-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -186,6 +187,9 @@ const MyReportsTimeline = () => {
             <div>
               <p className="text-dark-400 text-sm">Resolved</p>
               <p className="text-2xl font-bold text-green-400">{stats.resolvedReports || 0}</p>
+              <p className="text-xs text-dark-400">
+                {stats.totalReports > 0 ? Math.round((stats.resolvedReports / stats.totalReports) * 100) : 0}% success rate
+              </p>
             </div>
             <CheckCircle className="w-8 h-8 text-green-400" />
           </div>
@@ -193,10 +197,10 @@ const MyReportsTimeline = () => {
         <div className="bg-dark-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-dark-400 text-sm">Community Score</p>
-              <p className="text-2xl font-bold text-yellow-400">{stats.communityScore || 0}</p>
+              <p className="text-dark-400 text-sm">In Progress</p>
+              <p className="text-2xl font-bold text-yellow-400">{stats.inProgressReports || 0}</p>
             </div>
-            <ThumbsUp className="w-8 h-8 text-yellow-400" />
+            <Clock className="w-8 h-8 text-yellow-400" />
           </div>
         </div>
         <div className="bg-dark-800 rounded-lg p-4">
@@ -204,8 +208,51 @@ const MyReportsTimeline = () => {
             <div>
               <p className="text-dark-400 text-sm">Points Earned</p>
               <p className="text-2xl font-bold text-purple-400">{stats.points || 0}</p>
+              <p className="text-xs text-dark-400">
+                {stats.coins || 0} coins
+              </p>
             </div>
-            <Calendar className="w-8 h-8 text-purple-400" />
+            <Award className="w-8 h-8 text-purple-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* Detailed Status Breakdown */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-dark-800 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-dark-400 text-xs">New</p>
+              <p className="text-lg font-bold text-blue-400">{stats.newReports || 0}</p>
+            </div>
+            <Clock className="w-5 h-5 text-blue-400" />
+          </div>
+        </div>
+        <div className="bg-dark-800 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-dark-400 text-xs">Closed</p>
+              <p className="text-lg font-bold text-green-400">{stats.closedReports || 0}</p>
+            </div>
+            <CheckCircle className="w-5 h-5 text-green-400" />
+          </div>
+        </div>
+        <div className="bg-dark-800 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-dark-400 text-xs">Rejected</p>
+              <p className="text-lg font-bold text-red-400">{stats.rejectedReports || 0}</p>
+            </div>
+            <XCircle className="w-5 h-5 text-red-400" />
+          </div>
+        </div>
+        <div className="bg-dark-800 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-dark-400 text-xs">Community Score</p>
+              <p className="text-lg font-bold text-yellow-400">{stats.communityScore || 0}</p>
+            </div>
+            <ThumbsUp className="w-5 h-5 text-yellow-400" />
           </div>
         </div>
       </div>

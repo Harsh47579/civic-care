@@ -75,7 +75,7 @@ const AdminChatbot = () => {
     },
     {
       refetchInterval: 30000, // Refetch every 30 seconds
-      refetchOnWindowFocus: true
+      refetchOnWindowFocus: false // Prevent refreshes on window focus
     }
   );
 

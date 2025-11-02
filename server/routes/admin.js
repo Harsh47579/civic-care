@@ -13,7 +13,7 @@ const router = express.Router();
 const createMockAdmin = () => ({
   _id: 'admin-bypass-id',
   name: 'Admin User',
-  email: 'admin@jharkhand.gov.in',
+  email: 'admin@nivaran.com',
   role: 'admin',
   isActive: true,
   permissions: ['*']

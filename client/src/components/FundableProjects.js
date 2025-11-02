@@ -77,7 +77,7 @@ const FundableProjects = () => {
     return () => {
       socket.off('funding_update', handleFundingUpdate);
     };
-  }, [socket, queryClient, filters]);
+  }, [socket, filters]); // Remove queryClient from dependencies
 
   // Fetch funding campaigns
   const { data, isLoading, error, refetch } = useQuery(

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: jharkhand-civic-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        value: 26c4fdcb564e3755c3a5f63c4b0df341bcfe702a4349a9cc8653bebe69d12cf24b87c78ef476403a3e4bf94eea8f77f84fb32a8763cf95c034b85742ce31a0cd
+      - key: MONGODB_URI
+        value: mongodb://localhost:27017/jharkhand-civic
+      - key: CLIENT_URL
+        value: https://your-vercel-app.vercel.app

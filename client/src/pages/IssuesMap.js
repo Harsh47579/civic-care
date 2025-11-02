@@ -59,8 +59,8 @@ const IssuesMap = () => {
       if (searchQuery) params.append('search', searchQuery);
       if (userLocation) {
         params.append('nearby', 'true');
-        params.append('lat', userLocation[0]);
-        params.append('lng', userLocation[1]);
+        params.append('lat', userLocation.lat);
+        params.append('lng', userLocation.lng);
       }
       // Request only essential fields for map and list
       params.append('fields', '_id,title,status,category,createdAt,location.coordinates,priority,upvoteCount,commentCount');

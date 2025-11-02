@@ -26,15 +26,38 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
-const limiter = rateLimit({
+// Rate limiting - General
+const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 200, // limit each IP to 200 requests per windowMs
+  message: {
+    error: 'Too many requests, please try again later',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
 });
-app.use(limiter);
+
+// Rate limiting - Auth routes (more lenient)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // limit each IP to 50 auth requests per windowMs
+  message: {
+    error: 'Too many authentication attempts, please try again later',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for successful auth requests
+    return req.method === 'GET' && req.path === '/api/auth/me';
+  }
+});
+
+app.use(generalLimiter);
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/issues', require('./routes/issues'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/notifications', require('./routes/notifications'));
@@ -53,7 +76,21 @@ app.use('/api/announcements', require('./routes/announcements'));
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || 5000
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Nivaran Platform API', 
+    status: 'running',
+    version: '1.0.0'
+  });
 });
 
 // Socket.io for real-time updates
@@ -146,6 +183,40 @@ const emitIssueUpdate = (issueId, updatedData) => {
       timestamp: new Date()
     });
   }
+
+  // Emit to admin room for AI predictions refresh
+  io.to('admin-room').emit('issueUpdated', {
+    issueId,
+    ...updatedData,
+    timestamp: new Date()
+  });
+};
+
+// Helper function to emit new issue events
+const emitNewIssue = (newIssue) => {
+  // Emit to admin room for AI predictions refresh
+  io.to('admin-room').emit('newIssue', {
+    issueId: newIssue._id,
+    title: newIssue.title,
+    category: newIssue.category,
+    priority: newIssue.priority,
+    location: newIssue.location,
+    createdAt: newIssue.createdAt,
+    timestamp: new Date()
+  });
+
+  // Emit to user's personal room for dashboard updates
+  if (newIssue.reporter) {
+    io.to(`user-${newIssue.reporter}`).emit('newIssue', {
+      issueId: newIssue._id,
+      title: newIssue.title,
+      category: newIssue.category,
+      priority: newIssue.priority,
+      location: newIssue.location,
+      createdAt: newIssue.createdAt,
+      timestamp: new Date()
+    });
+  }
 };
 
 // Helper function to emit funding updates
@@ -171,11 +242,13 @@ const emitUserNotification = (userId, notification) => {
 
 // Make functions available globally
 global.emitIssueUpdate = emitIssueUpdate;
+global.emitNewIssue = emitNewIssue;
 global.emitUserNotification = emitUserNotification;
 
 // Make io and helper functions available to routes
 app.set('io', io);
 app.set('emitIssueUpdate', emitIssueUpdate);
+app.set('emitNewIssue', emitNewIssue);
 app.set('emitFundingUpdate', emitFundingUpdate);
 app.set('emitUserNotification', emitUserNotification);
 
@@ -191,13 +264,28 @@ app.use('*', (req, res) => {
 });
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/jharkhand-civic')
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+const connectDB = async () => {
+  try {
+    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/nivaran-platform';
+    await mongoose.connect(mongoURI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('Connected to MongoDB');
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  }
+};
+
+connectDB();
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+
+// Start server
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
 module.exports = { app, io };

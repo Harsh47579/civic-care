@@ -4,7 +4,7 @@ async function testIssueSubmission() {
   try {
     // First login to get token
     const loginResponse = await axios.post('http://localhost:5000/api/auth/login', {
-      email: 'admin@jharkhand.gov.in',
+      email: 'admin@nivaran.com',
       password: 'admin123456'
     });
     

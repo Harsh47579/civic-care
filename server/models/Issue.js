@@ -221,46 +221,55 @@ const issueSchema = new mongoose.Schema({
     }
   }],
   community: {
-    upvotes: [{
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-      },
-      createdAt: {
-        type: Date,
-        default: Date.now
-      }
-    }],
-    comments: [{
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-      },
-      text: {
-        type: String,
-        required: true,
-        maxlength: [500, 'Comment cannot exceed 500 characters']
-      },
-      createdAt: {
-        type: Date,
-        default: Date.now
-      },
-      isEdited: {
-        type: Boolean,
-        default: false
-      }
-    }],
-    confirmations: [{
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-      },
-      createdAt: {
-        type: Date,
-        default: Date.now
-      }
-    }]
+    upvotes: {
+      type: [{
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User'
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }],
+      default: []
+    },
+    comments: {
+      type: [{
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true
+        },
+        text: {
+          type: String,
+          required: true,
+          maxlength: [500, 'Comment cannot exceed 500 characters']
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        },
+        isEdited: {
+          type: Boolean,
+          default: false
+        }
+      }],
+      default: []
+    },
+    confirmations: {
+      type: [{
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User'
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }],
+      default: []
+    }
   },
   estimatedResolution: Date,
   tags: [String],
@@ -287,17 +296,17 @@ issueSchema.index({ 'assignedTo.department': 1, status: 1 });
 
 // Virtual for upvote count
 issueSchema.virtual('upvoteCount').get(function() {
-  return this.community.upvotes.length;
+  return this.community?.upvotes?.length || 0;
 });
 
 // Virtual for comment count
 issueSchema.virtual('commentCount').get(function() {
-  return this.community.comments.length;
+  return this.community?.comments?.length || 0;
 });
 
 // Virtual for confirmation count
 issueSchema.virtual('confirmationCount').get(function() {
-  return this.community.confirmations.length;
+  return this.community?.confirmations?.length || 0;
 });
 
 // Method to add upvote

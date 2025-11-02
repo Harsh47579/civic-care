@@ -6,7 +6,7 @@ const useSocket = () => {
 
   useEffect(() => {
     // Initialize socket connection
-    socketRef.current = io(process.env.REACT_APP_SERVER_URL || 'http://localhost:5000', {
+    socketRef.current = io(process.env.REACT_APP_SOCKET_URL || process.env.REACT_APP_API_URL || 'http://localhost:5000', {
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,

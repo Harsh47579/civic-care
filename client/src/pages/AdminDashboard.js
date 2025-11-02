@@ -292,11 +292,17 @@ const AdminDashboard = () => {
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* AI Predictions Widget */}
-            <AIPredictionsWidget />
+            <AIPredictionsWidget recentIssues={recentIssues} />
 
             {/* Recent Issues */}
             <div className="card">
-              <h2 className="text-xl font-semibold text-white mb-4">Recent Issues</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Recent Issues</h2>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-green-400">Live Updates</span>
+                </div>
+              </div>
               <div className="space-y-4">
                 {recentIssues.slice(0, 5).map((issue) => (
                   <AdminIssueCard key={issue._id} issue={issue} />

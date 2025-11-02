@@ -6,7 +6,7 @@ import { Eye, EyeOff, Shield, Lock, Mail } from 'lucide-react';
 
 const AdminLogin = () => {
   const [formData, setFormData] = useState({
-    email: 'admin@jharkhand.gov.in',
+    email: 'admin@nivaran.com',
     password: 'admin123456'
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -44,7 +44,7 @@ const AdminLogin = () => {
 
   const quickLogin = () => {
     setFormData({
-      email: 'admin@jharkhand.gov.in',
+      email: 'admin@nivaran.com',
       password: 'admin123456'
     });
   };
@@ -77,7 +77,7 @@ const AdminLogin = () => {
                   value={formData.email}
                   onChange={handleChange}
                   className="w-full pl-10 pr-4 py-3 bg-dark-700 border border-dark-600 rounded-lg text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  placeholder="admin@jharkhand.gov.in"
+                  placeholder="admin@nivaran.com"
                   required
                 />
               </div>
@@ -144,7 +144,7 @@ const AdminLogin = () => {
           <div className="mt-6 p-4 bg-dark-700 rounded-lg border border-dark-600">
             <h3 className="text-sm font-medium text-white mb-2">Default Admin Credentials:</h3>
             <div className="text-xs text-dark-300 space-y-1">
-              <div><span className="text-white">Email:</span> admin@jharkhand.gov.in</div>
+              <div><span className="text-white">Email:</span> admin@nivaran.com</div>
               <div><span className="text-white">Password:</span> admin123456</div>
             </div>
           </div>

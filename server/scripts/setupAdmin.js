@@ -7,7 +7,7 @@ require('dotenv').config();
 const setupAdmin = async () => {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/jharkhand-civic', {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/nivaran-platform', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -15,11 +15,11 @@ const setupAdmin = async () => {
     console.log('Connected to MongoDB');
 
     // Create admin user
-    const adminExists = await User.findOne({ email: 'admin@jharkhand.gov.in' });
+    const adminExists = await User.findOne({ email: 'admin@nivaran.com' });
     if (!adminExists) {
       const adminUser = new User({
         name: 'System Administrator',
-        email: 'admin@jharkhand.gov.in',
+        email: 'admin@nivaran.com',
         phone: '9876543210',
         password: 'admin123456',
         role: 'admin',
@@ -50,7 +50,7 @@ const setupAdmin = async () => {
           coordinates: [85.3096, 23.3441] // Ranchi coordinates
         },
         contact: {
-          email: 'pwd@jharkhand.gov.in',
+          email: 'pwd@nivaran.com',
           phone: '0651-2200001',
           address: 'Public Works Department, Ranchi'
         },
@@ -70,7 +70,7 @@ const setupAdmin = async () => {
           coordinates: [85.3096, 23.3441]
         },
         contact: {
-          email: 'municipal@jharkhand.gov.in',
+          email: 'municipal@nivaran.com',
           phone: '0651-2200002',
           address: 'Municipal Corporation, Ranchi'
         },
@@ -90,7 +90,7 @@ const setupAdmin = async () => {
           coordinates: [85.3096, 23.3441]
         },
         contact: {
-          email: 'waterboard@jharkhand.gov.in',
+          email: 'waterboard@nivaran.com',
           phone: '0651-2200003',
           address: 'Jharkhand Water Board, Ranchi'
         },
@@ -110,7 +110,7 @@ const setupAdmin = async () => {
           coordinates: [85.3096, 23.3441]
         },
         contact: {
-          email: 'traffic@jharkhand.gov.in',
+          email: 'traffic@nivaran.com',
           phone: '0651-2200004',
           address: 'Traffic Police Headquarters, Ranchi'
         },
@@ -130,7 +130,7 @@ const setupAdmin = async () => {
           coordinates: [85.3096, 23.3441]
         },
         contact: {
-          email: 'admin@jharkhand.gov.in',
+          email: 'admin@nivaran.com',
           phone: '0651-2200005',
           address: 'General Administration, Ranchi'
         },
@@ -158,21 +158,21 @@ const setupAdmin = async () => {
     const sampleStaff = [
       {
         name: 'Rajesh Kumar',
-        email: 'rajesh.pwd@jharkhand.gov.in',
+        email: 'rajesh.pwd@nivaran.com',
         phone: '9876543211',
         role: 'department',
         department: 'Public Works Department'
       },
       {
         name: 'Priya Sharma',
-        email: 'priya.municipal@jharkhand.gov.in',
+        email: 'priya.municipal@nivaran.com',
         phone: '9876543212',
         role: 'department',
         department: 'Municipal Corporation'
       },
       {
         name: 'Amit Singh',
-        email: 'amit.water@jharkhand.gov.in',
+        email: 'amit.water@nivaran.com',
         phone: '9876543213',
         role: 'department',
         department: 'Water Board'
@@ -218,10 +218,10 @@ const setupAdmin = async () => {
 
     console.log('Admin setup completed successfully!');
     console.log('\n=== Login Credentials ===');
-    console.log('Admin: admin@jharkhand.gov.in / admin123456');
-    console.log('Staff: rajesh.pwd@jharkhand.gov.in / staff123456');
-    console.log('Staff: priya.municipal@jharkhand.gov.in / staff123456');
-    console.log('Staff: amit.water@jharkhand.gov.in / staff123456');
+    console.log('Admin: admin@nivaran.com / admin123456');
+    console.log('Staff: rajesh.pwd@nivaran.com / staff123456');
+    console.log('Staff: priya.municipal@nivaran.com / staff123456');
+    console.log('Staff: amit.water@nivaran.com / staff123456');
 
   } catch (error) {
     console.error('Setup error:', error);

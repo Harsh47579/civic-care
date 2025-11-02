@@ -14,12 +14,13 @@ import {
   Minimize2,
   Maximize2,
   Loader2,
-  Bell
+  Bell,
+  Sparkles
 } from 'lucide-react';
 import { formatAIResponse, generateActionButtons } from '../utils/formatAIResponse';
 import NivaranIcon from './NivaranIcon';
 
-const Chatbot = ({ isAdmin = false }) => {
+const ModernChatbot = ({ isAdmin = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
@@ -49,103 +50,51 @@ const Chatbot = ({ isAdmin = false }) => {
     const handleNewMessage = (data) => {
       if (data.conversationId === conversationId) {
         setMessages(prev => [...prev, data.message]);
-        setIsTyping(false);
       }
     };
 
-    const handleUserTyping = (data) => {
-      if (data.userId !== user?.id) {
+    const handleTyping = (data) => {
+      if (data.conversationId === conversationId) {
         setTypingUsers(prev => new Set([...prev, data.userId]));
       }
     };
 
-    const handleUserStoppedTyping = (data) => {
-      setTypingUsers(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(data.userId);
-        return newSet;
-      });
-    };
-
-    const handleNewAnnouncement = (announcement) => {
-      // Add announcement as a special message in the chat
-      const announcementMessage = {
-        content: `📢 **${announcement.title}**\n\n${announcement.content}`,
-        sender: 'announcement',
-        timestamp: new Date(),
-        announcement: announcement
-      };
-      
-      setMessages(prev => [...prev, announcementMessage]);
-      toast.success(`New announcement: ${announcement.title}`);
+    const handleStopTyping = (data) => {
+      if (data.conversationId === conversationId) {
+        setTypingUsers(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(data.userId);
+          return newSet;
+        });
+      }
     };
 
     socket.on('new-message', handleNewMessage);
-    socket.on('user-typing', handleUserTyping);
-    socket.on('user-stopped-typing', handleUserStoppedTyping);
-    socket.on('new_announcement', handleNewAnnouncement);
+    socket.on('user-typing', handleTyping);
+    socket.on('user-stopped-typing', handleStopTyping);
 
     return () => {
       socket.off('new-message', handleNewMessage);
-      socket.off('user-typing', handleUserTyping);
-      socket.off('user-stopped-typing', handleUserStoppedTyping);
-      socket.off('new_announcement', handleNewAnnouncement);
+      socket.off('user-typing', handleTyping);
+      socket.off('user-stopped-typing', handleStopTyping);
     };
-  }, [socket, isAuthenticated, conversationId, user?.id]);
+  }, [socket, isAuthenticated, conversationId]);
 
-  // Join chat room when conversation is loaded
-  useEffect(() => {
-    if (socket && conversationId) {
-      socket.emit('join-chat', conversationId);
-      return () => {
-        socket.emit('leave-chat', conversationId);
-      };
-    }
-  }, [socket, conversationId]);
-
-  // Join announcement audience room based on user role
-  useEffect(() => {
-    if (!socket || !isAuthenticated || !user) return;
-
-    const audience = user.role === 'admin' || user.role === 'super_admin' ? 'admins' : 'citizens';
-    socket.emit('join-audience', audience);
-    
-    // Also join 'all' audience
-    socket.emit('join-audience', 'all');
-
-    return () => {
-      socket.emit('leave-audience', audience);
-      socket.emit('leave-audience', 'all');
-    };
-  }, [socket, isAuthenticated, user]);
+  // Handle authentication retry for rate limiting
+  // Remove the problematic authentication retry mechanism
+  // The AuthContext already handles token validation properly
 
   // Fetch conversations
-  const { refetch: refetchConversations } = useQuery(
-    'chat-conversations',
+  const { data: conversations, refetch: refetchConversations } = useQuery(
+    'conversations',
     async () => {
       const response = await axios.get('/api/chat/conversations');
-      return response.data.conversations;
+      return response.data;
     },
     {
       enabled: isAuthenticated,
-      refetchOnWindowFocus: false
-    }
-  );
-
-  // Fetch specific conversation
-  useQuery(
-    ['chat-conversation', conversationId],
-    async () => {
-      if (!conversationId) return null;
-      const response = await axios.get(`/api/chat/conversation/${conversationId}`);
-      return response.data.conversation;
-    },
-    {
-      enabled: !!conversationId,
-      onSuccess: (data) => {
-        if (data) {
-          setMessages(data.messages || []);
-        }
+      onError: (error) => {
+        console.error('Error fetching conversations:', error);
       }
     }
   );
@@ -156,17 +105,26 @@ const Chatbot = ({ isAdmin = false }) => {
       console.log('Sending message with data:', messageData);
       console.log('User authenticated:', isAuthenticated);
       console.log('User:', user);
-      console.log('Token in headers:', axios.defaults.headers.common['Authorization']);
+      console.log('Token in localStorage:', localStorage.getItem('token'));
       
-      // Get token from localStorage
       const token = localStorage.getItem('token');
-      console.log('Token from localStorage:', token);
-      
       if (!token) {
         throw new Error('No authentication token found');
       }
       
-      const response = await axios.post('/api/chat/message', messageData, {
+      // Ensure messageData has the correct format
+      const requestData = {
+        message: messageData.message,
+        conversationId: messageData.conversationId || null
+      };
+      
+      console.log('Request data being sent:', requestData);
+      console.log('Request headers:', {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      });
+      
+      const response = await axios.post('/api/chat/message', requestData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -178,7 +136,6 @@ const Chatbot = ({ isAdmin = false }) => {
       onSuccess: (data) => {
         console.log('Message sent successfully:', data);
         
-        // Store the full response data including NLP metadata
         const enhancedMessage = {
           ...data.message,
           nlp: data.nlp,
@@ -191,7 +148,6 @@ const Chatbot = ({ isAdmin = false }) => {
         setIsTyping(false);
         refetchConversations();
         
-        // If this was a new conversation, set the conversationId
         if (data.conversation && !conversationId) {
           setConversationId(data.conversation.conversationId);
         }
@@ -201,7 +157,6 @@ const Chatbot = ({ isAdmin = false }) => {
         console.error('Error response:', error.response?.data);
         console.error('Error status:', error.response?.status);
         
-        // Show specific error message
         if (error.response?.status === 401) {
           toast.error('Please login again to continue chatting');
         } else if (error.response?.status === 403) {
@@ -241,7 +196,6 @@ const Chatbot = ({ isAdmin = false }) => {
         console.error('Error response:', error.response?.data);
         console.error('Error status:', error.response?.status);
         
-        // Show specific error message
         if (error.response?.status === 401) {
           toast.error('Please login again to continue chatting');
         } else if (error.response?.status === 403) {
@@ -268,18 +222,39 @@ const Chatbot = ({ isAdmin = false }) => {
     console.log('user.id:', user?.id);
     console.log('isAdmin:', isAdmin);
     
-    // Check if user is properly authenticated
-    if (!isAuthenticated || !user || !user.id) {
-      console.error('User not properly authenticated');
+    // Check authentication more thoroughly
+    if (!isAuthenticated) {
+      console.error('User not authenticated');
       toast.error('Please login to send messages');
       return;
     }
     
-    // Check if token is present
+    if (!user) {
+      console.error('User object not found');
+      toast.error('Please login again');
+      return;
+    }
+    
+    if (!user._id && !user.id) {
+      console.error('User ID not found');
+      toast.error('Please login again');
+      return;
+    }
+    
     const token = localStorage.getItem('token');
     if (!token) {
       console.error('No token found');
       toast.error('Please login again');
+      return;
+    }
+    
+    // Verify token is valid by making a test request
+    try {
+      const testResponse = await axios.get('/api/auth/me');
+      console.log('Token validation successful:', testResponse.data);
+    } catch (error) {
+      console.error('Token validation failed:', error);
+      toast.error('Please login again - session expired');
       return;
     }
 
@@ -287,7 +262,6 @@ const Chatbot = ({ isAdmin = false }) => {
     setMessage('');
     setIsTyping(true);
 
-    // Add user message to UI immediately
     const userMessage = {
       content: messageText,
       sender: 'user',
@@ -296,7 +270,6 @@ const Chatbot = ({ isAdmin = false }) => {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Send typing indicator
     if (socket && conversationId) {
       socket.emit('typing', { conversationId, userId: user?.id, isTyping: true });
     }
@@ -315,7 +288,6 @@ const Chatbot = ({ isAdmin = false }) => {
           conversationId
         });
         
-        // If this was a new conversation, set the conversationId
         if (response.conversation && !conversationId) {
           setConversationId(response.conversation.conversationId);
         }
@@ -329,7 +301,6 @@ const Chatbot = ({ isAdmin = false }) => {
         statusText: error.response?.statusText
       });
       
-      // Show specific error message
       if (error.response?.status === 401) {
         toast.error('Please login again to continue chatting');
       } else if (error.response?.status === 403) {
@@ -340,11 +311,9 @@ const Chatbot = ({ isAdmin = false }) => {
         toast.error('Failed to send message. Please try again');
       }
       
-      // Remove the user message from UI if sending failed
       setMessages(prev => prev.slice(0, -1));
     } finally {
       setIsTyping(false);
-      // Stop typing indicator
       if (socket && conversationId) {
         socket.emit('stop-typing', { conversationId, userId: user?.id });
       }
@@ -356,15 +325,12 @@ const Chatbot = ({ isAdmin = false }) => {
     setMessage(e.target.value);
     
     if (socket && conversationId) {
-      // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
       
-      // Send typing indicator
       socket.emit('typing', { conversationId, userId: user?.id, isTyping: true });
       
-      // Set timeout to stop typing
       typingTimeoutRef.current = setTimeout(() => {
         socket.emit('stop-typing', { conversationId, userId: user?.id });
       }, 1000);
@@ -373,23 +339,10 @@ const Chatbot = ({ isAdmin = false }) => {
 
   // Start new conversation
   const startNewConversation = () => {
-    setConversationId(null);
     setMessages([]);
-    setIsOpen(true);
-    // Add a welcome message
-    const welcomeMessage = {
-      content: "Hello! How can I help you report an issue today? 😊",
-      sender: 'ai',
-      timestamp: new Date()
-    };
-    setMessages([welcomeMessage]);
+    setConversationId(null);
+    setIsTyping(false);
   };
-
-  // Select conversation (currently unused but kept for future admin features)
-  // const selectConversation = (conv) => {
-  //   setConversationId(conv.conversationId);
-  //   setIsOpen(true);
-  // };
 
   // Get message sender info
   const getMessageSender = (message) => {
@@ -400,7 +353,7 @@ const Chatbot = ({ isAdmin = false }) => {
     } else if (message.sender === 'announcement') {
       return { name: 'Announcement', icon: Bell, color: 'bg-yellow-500' };
     } else {
-      return { name: 'Civic Assistant', icon: Bot, color: 'bg-green-500' };
+      return { name: 'Nivaran Assistant', icon: Bot, color: 'bg-green-500' };
     }
   };
 
@@ -416,20 +369,15 @@ const Chatbot = ({ isAdmin = false }) => {
   const handleActionButton = (button, message) => {
     switch (button.action) {
       case 'report':
-        // Navigate to report issue page with pre-filled category
         toast.success(`Redirecting to report ${button.category} issue...`);
-        // You can implement navigation here
         break;
       case 'status':
-        // Navigate to status page
         toast.success('Redirecting to status page...');
         break;
       case 'escalate':
-        // Show escalation information
         toast.success(`Escalating to ${message.nlp.department}...`);
         break;
       case 'categories':
-        // Show all issue categories
         toast.success('Showing all issue categories...');
         break;
       default:
@@ -438,8 +386,7 @@ const Chatbot = ({ isAdmin = false }) => {
   };
 
   if (!isAuthenticated) {
-    console.log('User not authenticated, chatbot not rendered');
-    return null;
+    return null; // Don't render chatbot if not authenticated
   }
 
   return (
@@ -448,39 +395,45 @@ const Chatbot = ({ isAdmin = false }) => {
       <div className="fixed bottom-6 right-6 z-50">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-lg transition-all duration-300 ${
-            isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          className={`group relative bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded-full p-4 shadow-2xl transition-all duration-300 transform hover:scale-105 ${
+            isOpen ? 'opacity-0 pointer-events-none scale-0' : 'opacity-100 scale-100'
           }`}
         >
-          <MessageCircle size={24} />
+          <MessageCircle size={24} className="transition-transform group-hover:rotate-12" />
+          <div className="absolute inset-0 rounded-full bg-primary-400 animate-ping opacity-20"></div>
         </button>
       </div>
 
       {/* Chat Window */}
       {isOpen && (
-        <div className={`fixed bottom-6 right-6 z-50 bg-white rounded-lg shadow-2xl transition-all duration-300 ${
-          isMinimized ? 'h-16 w-80' : 'h-96 w-80'
-        }`}>
+        <div className={`fixed bottom-6 right-6 z-50 bg-white rounded-2xl shadow-2xl transition-all duration-500 transform ${
+          isMinimized ? 'h-16 w-80' : 'h-[500px] w-96'
+        } ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
           {/* Header */}
-          <div className="bg-primary-600 text-white p-4 rounded-t-lg flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+          <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-4 rounded-t-2xl flex items-center justify-between">
+            <div className="flex items-center space-x-3">
               <NivaranIcon size="small" />
-              <span className="font-semibold">
-                {isAdmin ? 'Admin Chat' : 'Nivaran Assistant'}
-              </span>
+              <div>
+                <span className="font-semibold text-lg">
+                  {isAdmin ? 'Admin Chat' : 'Nivaran Assistant'}
+                </span>
+                <p className="text-xs text-primary-100">
+                  {isAdmin ? 'Manage conversations' : 'AI-powered support'}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1">
               <button
                 onClick={() => setIsMinimized(!isMinimized)}
-                className="text-white hover:bg-primary-700 rounded p-1"
+                className="text-white hover:bg-primary-700 rounded-lg p-2 transition-colors"
               >
-                {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+                {isMinimized ? <Maximize2 size={18} /> : <Minimize2 size={18} />}
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-white hover:bg-primary-700 rounded p-1"
+                className="text-white hover:bg-primary-700 rounded-lg p-2 transition-colors"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
           </div>
@@ -488,22 +441,30 @@ const Chatbot = ({ isAdmin = false }) => {
           {!isMinimized && (
             <>
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 h-64">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[380px] bg-gray-50">
                 {messages.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
-                    <Bot size={32} className="mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm">
+                  <div className="text-center text-gray-500 py-12">
+                    <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Bot size={32} className="text-primary-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-700 mb-2">
                       {isAdmin 
                         ? 'Select a conversation to start chatting'
-                        : 'Hello! How can I help you report an issue today?'
+                        : 'Welcome to Nivaran Assistant!'
+                      }
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      {isAdmin 
+                        ? 'Choose a conversation from the list to begin'
+                        : 'I\'m here to help you report issues and get support. How can I assist you today?'
                       }
                     </p>
                     {!isAdmin && (
                       <button
                         onClick={startNewConversation}
-                        className="mt-2 text-primary-600 hover:text-primary-700 text-sm font-medium"
+                        className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 transform hover:scale-105"
                       >
-                        Start new conversation
+                        Start New Conversation
                       </button>
                     )}
                   </div>
@@ -513,66 +474,76 @@ const Chatbot = ({ isAdmin = false }) => {
                     const SenderIcon = sender.icon;
                     const isUser = msg.sender === 'user';
                     
-                    // Format AI responses for better readability
                     const displayContent = isUser ? msg.content : formatAIResponse(msg);
                     
                     return (
                       <div
                         key={index}
-                        className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                        className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in-up`}
+                        style={{ animationDelay: `${index * 0.1}s` }}
                       >
-                        <div
-                          className={`max-w-xs px-3 py-2 rounded-lg ${
-                            isUser
-                              ? 'bg-primary-600 text-white'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          <div className="flex items-center space-x-2 mb-1">
-                            <SenderIcon size={14} className={isUser ? 'text-white' : 'text-gray-600'} />
-                            <span className="text-xs font-medium">
-                              {sender.name}
-                            </span>
-                          </div>
-                          <p className="text-sm">{displayContent}</p>
-                          
-                          {/* Show action buttons for AI responses */}
-                          {!isUser && msg.nlp && msg.nlp.detected && (
-                            <div className="mt-2 space-y-1">
-                              {generateActionButtons(msg).slice(0, 2).map((button, btnIndex) => (
-                                <button
-                                  key={btnIndex}
-                                  onClick={() => handleActionButton(button, msg)}
-                                  className={`text-xs px-2 py-1 rounded ${
-                                    button.variant === 'primary' 
-                                      ? 'bg-primary-600 text-white hover:bg-primary-700'
-                                      : button.variant === 'urgent'
-                                      ? 'bg-red-500 text-white hover:bg-red-600'
-                                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                  }`}
-                                >
-                                  {button.text}
-                                </button>
-                              ))}
+                        <div className={`max-w-xs ${isUser ? 'order-2' : 'order-1'}`}>
+                          <div
+                            className={`px-4 py-3 rounded-2xl ${
+                              isUser
+                                ? 'bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-br-md'
+                                : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2 mb-2">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                isUser ? 'bg-primary-500' : 'bg-gray-100'
+                              }`}>
+                                <SenderIcon size={12} className={isUser ? 'text-white' : 'text-gray-600'} />
+                              </div>
+                              <span className="text-xs font-semibold">
+                                {sender.name}
+                              </span>
                             </div>
-                          )}
-                          
-                          <p className="text-xs opacity-70 mt-1">
+                            <p className="text-sm leading-relaxed">{displayContent}</p>
+                            
+                            {!isUser && msg.nlp && msg.nlp.detected && (
+                              <div className="mt-3 space-y-2">
+                                {generateActionButtons(msg).slice(0, 2).map((button, btnIndex) => (
+                                  <button
+                                    key={btnIndex}
+                                    onClick={() => handleActionButton(button, msg)}
+                                    className={`w-full text-xs px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
+                                      button.variant === 'primary' 
+                                        ? 'bg-primary-600 text-white hover:bg-primary-700 hover:scale-105'
+                                        : button.variant === 'urgent'
+                                        ? 'bg-red-600 text-white hover:bg-red-700 hover:scale-105'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
+                                    }`}
+                                  >
+                                    {button.text}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className={`text-xs text-gray-400 mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
                             {formatTime(msg.timestamp)}
-                          </p>
+                          </div>
                         </div>
                       </div>
                     );
                   })
                 )}
                 
-                {/* Typing indicator */}
-                {typingUsers.size > 0 && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <Loader2 size={14} className="animate-spin" />
-                        <span className="text-sm">Someone is typing...</span>
+                {isTyping && (
+                  <div className="flex justify-start animate-fade-in-up">
+                    <div className="bg-white text-gray-800 px-4 py-3 rounded-2xl rounded-bl-md shadow-sm border border-gray-200">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
+                          <Bot size={12} className="text-gray-600" />
+                        </div>
+                        <span className="text-xs font-semibold">Nivaran Assistant</span>
+                      </div>
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                     </div>
                   </div>
@@ -582,25 +553,32 @@ const Chatbot = ({ isAdmin = false }) => {
               </div>
 
               {/* Input */}
-              <div className="border-t p-4">
-                <form onSubmit={handleSendMessage} className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={message}
-                    onChange={handleTyping}
-                    placeholder="Type your message..."
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    disabled={isTyping}
-                  />
+              <div className="border-t border-gray-200 p-4 bg-white rounded-b-2xl">
+                <form onSubmit={handleSendMessage} className="flex space-x-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={message}
+                      onChange={handleTyping}
+                      placeholder="Type your message..."
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                      disabled={isTyping}
+                    />
+                    {message.trim() && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="submit"
                     disabled={!message.trim() || isTyping}
-                    className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 text-white rounded-lg px-3 py-2 transition-colors"
+                    className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-xl px-4 py-3 transition-all duration-200 transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
                   >
                     {isTyping ? (
-                      <Loader2 size={16} className="animate-spin" />
+                      <Loader2 size={18} className="animate-spin" />
                     ) : (
-                      <Send size={16} />
+                      <Send size={18} />
                     )}
                   </button>
                 </form>
@@ -613,4 +591,4 @@ const Chatbot = ({ isAdmin = false }) => {
   );
 };
 
-export default Chatbot;
+export default ModernChatbot;

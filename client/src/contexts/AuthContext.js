@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import axios from 'axios';
+import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import axios from '../config/api';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
@@ -57,6 +57,7 @@ const initialState = {
 
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const hasCheckedInitialAuth = useRef(false);
 
   // Set up axios interceptor for token
   useEffect(() => {
@@ -70,6 +71,10 @@ export const AuthProvider = ({ children }) => {
   // Check if user is logged in on app start
   useEffect(() => {
     const checkAuth = async () => {
+      // Only check initial auth once
+      if (hasCheckedInitialAuth.current) return;
+      hasCheckedInitialAuth.current = true;
+      
       if (state.token) {
         try {
           const response = await axios.get('/api/auth/me');
@@ -81,8 +86,12 @@ export const AuthProvider = ({ children }) => {
             },
           });
         } catch (error) {
-          localStorage.removeItem('token');
-          dispatch({ type: 'LOGOUT' });
+          console.error('Token validation failed:', error);
+          // Only clear token if it's not a rate limiting error
+          if (error.response?.status !== 429) {
+            localStorage.removeItem('token');
+            dispatch({ type: 'LOGOUT' });
+          }
         }
       } else {
         dispatch({ type: 'LOGOUT' });
@@ -90,7 +99,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkAuth();
-  }, []);
+  }, []); // Empty dependency array since we only want this to run once
 
   const login = async (email, password) => {
     dispatch({ type: 'LOGIN_START' });
@@ -110,7 +119,16 @@ export const AuthProvider = ({ children }) => {
       toast.success('Login successful!');
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      let message = 'Login failed';
+      
+      if (error.response?.status === 429) {
+        message = 'Too many login attempts. Please wait a few minutes and try again.';
+      } else if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      }
+      
       dispatch({ type: 'LOGIN_FAILURE', payload: message });
       toast.error(message);
       return { success: false, error: message };
